@@ -58,46 +58,20 @@ public:
     
     juce::AudioProcessorValueTreeState& getPluginState();
     juce::AudioProcessorValueTreeState myValueTreeState;
-    
-    
-    
+
 private:
-    juce::dsp::ProcessSpec mySpec;
-    
     juce::dsp::IIR::Filter<float> myFilter;
-   // juce::dsp::IIR::Filter<float>::CoefficientsPtr coefficient;
-    
-    /*
-    using Filter = juce::dsp::IIR::Filter<float>;
-    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
-    
-    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
-    
-    MonoChain leftChannel, righChannel;
-    juce::dsp::StateVariableTPTFilter<float> myFilter;
-    //using MonoChain = 
-    
-    
-    
-    //myFilter[2];
-    
-    //juce::IIRFilter::setCoefficients(<#const IIRCoefficients &newCoefficients#>)
-    */
+    juce::AudioBuffer<float> sidechainBuffer;
+    juce::dsp::StateVariableFilter::Filter<float> lowPassFilter;
+
     juce::AudioParameterFloat* inputPtr;
     juce::AudioParameterFloat* tonePtr;
     juce::AudioParameterFloat* lpfPtr;
     juce::AudioParameterFloat* mixPtr;
+    juce::AudioParameterFloat* freqPtr;
     juce::AudioParameterFloat* outputPtr;
     juce::AudioParameterBool* bypassPtr;
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SodtClipAudioProcessor)
 };

@@ -31,6 +31,7 @@ SodtClipAudioProcessor::SodtClipAudioProcessor()
     tonePtr = dynamic_cast<juce::AudioParameterFloat*>(myValueTreeState.getParameter("Tone"));
     lpfPtr = dynamic_cast<juce::AudioParameterFloat*>(myValueTreeState.getParameter("Freq"));
     mixPtr = dynamic_cast<juce::AudioParameterFloat*>(myValueTreeState.getParameter("Mix"));
+    freqPtr = dynamic_cast<juce::AudioParameterFloat*>(myValueTreeState.getParameter("Freq"));
     outputPtr = dynamic_cast<juce::AudioParameterFloat*>(myValueTreeState.getParameter("Output"));
     bypassPtr = dynamic_cast<juce::AudioParameterBool*>(myValueTreeState.getParameter("bypassPtr"));
         
@@ -107,13 +108,24 @@ void SodtClipAudioProcessor::changeProgramName (int index, const juce::String& n
 //==============================================================================
 void SodtClipAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    this->sampleRate = sampleRate;
+    juce::dsp::ProcessSpec mySpec;
+
     mySpec.sampleRate = sampleRate;
     mySpec.maximumBlockSize = samplesPerBlock;
-    mySpec.numChannels = getTotalNumOutputChannels();
+    mySpec.numChannels = getTotalNumInputChannels();
     
     myFilter.prepare(mySpec);
     myFilter.reset();
+
+    lowPassFilter.prepare(mySpec);
+
+    juce::dsp::StateVariableFilter::Parameters<float> parameters;
     
+    lowPassFilter.parameters->type = juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass;
+    lowPassFilter.parameters->setCutOffFrequency(sampleRate, freqPtr->get());
+    
+    sidechainBuffer.setSize(samplesPerBlock, getTotalNumInputChannels());
     
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
@@ -159,23 +171,71 @@ bool SodtClipAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 }
 #endif
 
-void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& inputBuffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-  auto totalNumInputChannels  = getTotalNumInputChannels();
+    auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+        inputBuffer.clear (i, 0, inputBuffer.getNumSamples());
 
     const float inputValue = inputPtr->get();
     const float toneValue = tonePtr->get();
     const float mixValue = mixPtr->get();
     const float outputValue = outputPtr->get();
+    const float freqValue = freqPtr->get();
+
+    const auto numSamples = inputBuffer.getNumSamples();
+    const auto numChannels = inputBuffer.getNumChannels();
+
+    // Apply input gain
+    const auto inputGain = juce::Decibels::decibelsToGain(inputValue);
+    inputBuffer.applyGain(inputGain);
+
+    sidechainBuffer.makeCopyOf(inputBuffer);
+
+    juce::dsp::AudioBlock<float> sidechainAudioBlock{sidechainBuffer};
+    juce::dsp::ProcessContextReplacing<float> processContext{sidechainAudioBlock};
+    lowPassFilter.process(processContext);
+
+    // y = x - 1/3 x^3
+    for (int sample = 0; sample < numSamples; sample++)
+    {
+        for (int channel = 0; channel <numChannels; channel++)
+        {
+            auto x = sidechainBuffer.getReadPointer(channel)[sample];
+            const auto dry = x;
+
+            // Apply waveshaping
+            const auto y = std::powf(x, 3.f);
+
+            // Apply mix
+            auto blend = dry * (1.f - mixValue) + (y * mixValue);
+
+            // Appy output gain
+            blend *= juce::Decibels::decibelsToGain(outputValue);
+
+            sidechainBuffer.getWritePointer(channel)[sample] = blend;
+        }
+    }
+
+    // Input buffer processing
+     for (int sample = 0; sample < numSamples; sample++)
+    {
+        for (int channel = 0; channel <numChannels; channel++)
+        {
+            auto x = inputBuffer.getReadPointer(channel)[sample];
+            const auto y = x - 1.f/ 3.f;
+            inputBuffer.getWritePointer(channel)[sample] = y;
+        }
+    }
+    // output = inputBuffer + sidechainBuffer;
 
 
-    juce::dsp::AudioBlock<float> audioBlock {buffer};
+
+    /*juce::dsp::AudioBlock<float> audioBlock {buffer};
     
     //input = (input - 1/3) * ((input)^3)
     
@@ -205,7 +265,7 @@ void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                 
             }
         
-        }
+        }*/
     
 }
 
