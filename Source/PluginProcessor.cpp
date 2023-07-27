@@ -15,7 +15,7 @@ SodtClipAudioProcessor::SodtClipAudioProcessor()
 : myValueTreeState(*this, nullptr, juce::Identifier("myParameter"),
         {
     std::make_unique<juce::AudioParameterFloat>("Input", "Input", -24.0f, 24.f, 0.f),
-    std::make_unique<juce::AudioParameterFloat>("Tone", "Tone", juce::NormalisableRange<float>(0.01f, 0.9f, 0.01f, 0.28f), 0.1f),
+    std::make_unique<juce::AudioParameterFloat>("Tone", "Tone", juce::NormalisableRange<float>(0.01f, 0.45f, 0.01f, 0.35f), 0.1f),
     //replace Tone param with AudioParameterChoise. with Dark/Mid/highMid/Bright options
     
     
@@ -108,15 +108,17 @@ void SodtClipAudioProcessor::changeProgramName (int index, const juce::String& n
 void SodtClipAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     mySpec.sampleRate = sampleRate;
-    mySpec.maximumBlockSize = static_cast<juce::uint32> (samplesPerBlock);
-    mySpec.numChannels = static_cast<juce::uint32> (getTotalNumOutputChannels());
+    mySpec.maximumBlockSize = samplesPerBlock;
+    mySpec.numChannels = getTotalNumOutputChannels();
+    
+    myFilter.prepare(mySpec);
+    myFilter.reset();
+    
+    
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-   // auto inputDB = inputPtr->get();
-    //auto drive = drivePtr->get();
-    //auto mix = mixPtr->get();
-    //auto output = outputPtr->get();
-    const auto filterCutoff = lpfPtr->get();
+  
+   // const auto filterCutoff = lpfPtr->get();
     
     
     
@@ -162,12 +164,7 @@ void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     juce::ScopedNoDenormals noDenormals;
   auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-    /*
-    
-  auto drive = drivePtr->get();
-  auto mix = mixPtr->get();
-  auto output = outputPtr->get();
-   */
+
     
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
@@ -177,42 +174,40 @@ void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     const float mixValue = mixPtr->get();
     const float outputValue = outputPtr->get();
 
-    
-    
-
 
     juce::dsp::AudioBlock<float> audioBlock {buffer};
     
     //input = (input - 1/3) * ((input)^3)
     
-    for (int sample = 0; sample < audioBlock.getNumSamples(); sample++)
-    {
-        for (int channel = 0; channel < audioBlock.getNumChannels(); channel++)
+        for (int sample = 0; sample < audioBlock.getNumSamples(); sample++)
         {
-            auto* data = audioBlock.getChannelPointer(channel);
-            
-            const auto input = data[sample] * juce::Decibels::decibelsToGain(inputValue);
-            
-            const auto processA = input - 0.333;
-           //const auto filtered = myFilter[channel].processSingleSampleRaw(data[sample]);
+            for (int channel = 0; channel < audioBlock.getNumChannels(); channel++)
+            {
+                auto* data = audioBlock.getChannelPointer(channel);
+                
+                const auto input = data[sample] * juce::Decibels::decibelsToGain(inputValue);
+                
+                const auto processA = input - 0.333;
+                
+                //Trying to create a parallel filtered input:
+                //auto inputFilter = myFilter.process(data[sample]);
+                //const auto processB = std::pow(toneValue, inputFilter);
 
-            const auto processB = std::pow(toneValue, data[sample]);
-            
-            auto clipProcess = processA * processB;
-            
-            auto blend = input * (1. - mixValue) + clipProcess * mixValue;
-            
-            blend *= juce::Decibels::decibelsToGain(outputValue);
-            
-            data[sample] = blend;
-            
+                const auto processB = std::pow(toneValue, data[sample]);
+                
+                auto clipProcess = processA * processB;
+                
+                auto blend = input * (1. - mixValue) + (clipProcess * mixValue);
+                
+                blend *= juce::Decibels::decibelsToGain(outputValue);
+                
+                data[sample] = blend;
+                
+            }
+        
         }
-    }
-
-  
     
-    
-    }
+}
 
 //==============================================================================
 bool SodtClipAudioProcessor::hasEditor() const

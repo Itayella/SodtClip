@@ -64,14 +64,25 @@ public:
 private:
     juce::dsp::ProcessSpec mySpec;
     
+    juce::dsp::IIR::Filter<float> myFilter;
+   // juce::dsp::IIR::Filter<float>::CoefficientsPtr coefficient;
+    
+    /*
     using Filter = juce::dsp::IIR::Filter<float>;
-    using CutFilter = juce::dsp::ProcessorChain<Filter>;
+    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+    
+    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
+    
+    MonoChain leftChannel, righChannel;
+    juce::dsp::StateVariableTPTFilter<float> myFilter;
     //using MonoChain = 
     
-    //juce::IIRFilter myFilter[2];
+    
+    
+    //myFilter[2];
     
     //juce::IIRFilter::setCoefficients(<#const IIRCoefficients &newCoefficients#>)
-    
+    */
     juce::AudioParameterFloat* inputPtr;
     juce::AudioParameterFloat* tonePtr;
     juce::AudioParameterFloat* lpfPtr;
