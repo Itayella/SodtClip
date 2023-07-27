@@ -64,6 +64,8 @@ private:
     juce::AudioBuffer<float> sidechainBuffer;
     juce::dsp::StateVariableFilter::Filter<float> lowPassFilter;
 
+    double sampleRate;
+
     juce::AudioParameterFloat* inputPtr;
     juce::AudioParameterFloat* tonePtr;
     juce::AudioParameterFloat* lpfPtr;
