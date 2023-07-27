@@ -198,6 +198,7 @@ void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& inputBuffer
 
     juce::dsp::AudioBlock<float> sidechainAudioBlock{sidechainBuffer};
     juce::dsp::ProcessContextReplacing<float> processContext{sidechainAudioBlock};
+    lowPassFilter.parameters->setCutOffFrequency(sampleRate, freqValue);
     lowPassFilter.process(processContext);
 
     // y = x - 1/3 x^3
@@ -231,7 +232,20 @@ void SodtClipAudioProcessor::processBlock (juce::AudioBuffer<float>& inputBuffer
             inputBuffer.getWritePointer(channel)[sample] = y;
         }
     }
+
+
+    // inputBuffer = x - 1/3
+    // sidechainBuffer = Filter + x^3 + mix + outgain
+
     // output = inputBuffer + sidechainBuffer;
+     for (int sample = 0; sample < numSamples; sample++)
+    {
+        for (int channel = 0; channel <numChannels; channel++)
+        {
+            inputBuffer.getWritePointer(channel)[sample] = 
+                inputBuffer.getReadPointer(channel)[sample] + sidechainBuffer.getReadPointer(channel)[sample];
+        }
+    }
 
 
 
